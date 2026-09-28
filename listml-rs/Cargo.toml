@@ -1,0 +1,18 @@
+[package]
+name = "listml-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1.25", features = ["derive"] }
+futures-channel = "0.3.34"
+wgpu = { version = "30", default-features = false, features = ["wgsl", "std"] }
+
+[dev-dependencies]
+wgpu = "30.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+pollster = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
