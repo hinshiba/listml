@@ -1,9 +1,6 @@
-use std::convert::Infallible;
-
-use crate::{
-    backend::Backend,
-    operation::{self, rectifier::Rectifier},
-};
+use crate::{backend::Backend, operation::rectifier::Rectifier};
+use std::iter::zip;
+use std::sync::Arc;
 
 pub struct CpuBackend {}
 
@@ -19,19 +16,21 @@ pub struct CpuTensor {
     cols: usize,
 }
 
+impl CpuTensor {
+    fn new(data: Vec<f32>, rows: usize, cols: usize) -> Self {
+        assert_eq!(data.len(), rows * cols);
+        Self(Arc::new(CpuTensorData { data, rows, cols }))
+    }
+}
+
 impl Backend for CpuBackend {
     type Tensor = CpuTensor;
     fn write(&self, data: &[f32], rows: usize, cols: usize) -> Self::Tensor {
-        assert_eq!(data.len(), rows * cols);
-        Self::Tensor {
-            data: data.to_vec(),
-            rows,
-            cols,
-        }
+        CpuTensor::new(data.to_vec(), rows, cols)
     }
 
     async fn read(&self, t: &Self::Tensor) -> Result<Vec<f32>, ()> {
-        Ok(t.data.clone())
+        Ok(t.0.data.clone())
     }
 
     fn flush(&self) {}
@@ -39,11 +38,20 @@ impl Backend for CpuBackend {
 
 impl Rectifier for CpuBackend {
     fn rectifier(&self, x: &Self::Tensor) -> Self::Tensor {
-        Self::Tensor {
-            data: x.data.iter().map(|&v| v.max(0.)).collect(),
-            rows: x.rows,
-            cols: x.cols,
-        }
+        let x = &x.0;
+        CpuTensor::new(x.data.iter().map(|&v| v.max(0.)).collect(), x.rows, x.cols)
+    }
+
+    fn gate(&self, sig: &Self::Tensor, x: &Self::Tensor) -> Self::Tensor {
+        // TODO check size
+        let (sig, x) = (&sig.0, &x.0);
+        CpuTensor::new(
+            zip(&sig.data, &x.data)
+                .map(|(&s, &d)| if 0. < s { d } else { 0. })
+                .collect(),
+            x.rows,
+            x.cols,
+        )
     }
 }
 
@@ -51,8 +59,10 @@ impl Rectifier for CpuBackend {
 mod test {
     use crate::{
         backend::{Backend, cpu::CpuBackend},
+        layer::{Layer, relu::Relu},
         operation::rectifier::Rectifier,
     };
+    use std::sync::Arc;
 
     #[pollster::test]
     async fn op_relu() {
@@ -68,12 +78,15 @@ mod test {
 
     #[pollster::test]
     async fn layer_relu() {
-        let cpu = CpuBackend::new();
+        let cpu = Arc::new(CpuBackend::new());
         let data: Vec<f32> = vec![-1., -0.001, 0., 0.001, 1.];
         let expect: Vec<f32> = vec![0., 0., 0., 0.001, 1.];
 
-        let t = cpu.write(data.as_slice(), data.len(), 1);
-        let r = cpu.rectifier(&t);
+        let mut relu = Relu::new(cpu.clone());
+        let x = cpu.write(data.as_slice(), data.len(), 1);
+
+        let r = relu.forward(&x);
+
         cpu.flush();
         assert_eq!(expect, cpu.read(&r).await.unwrap());
     }
