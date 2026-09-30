@@ -1,6 +1,7 @@
-use crate::{backend::Backend, operation::rectifier::Rectifier};
-use std::iter::zip;
+use crate::backend::Backend;
 use std::sync::Arc;
+
+pub mod operation;
 
 pub struct CpuBackend {}
 
@@ -10,7 +11,10 @@ impl CpuBackend {
     }
 }
 
-pub struct CpuTensor {
+#[derive(Clone)]
+pub struct CpuTensor(Arc<CpuTensorData>);
+
+struct CpuTensorData {
     data: Vec<f32>,
     rows: usize,
     cols: usize,
@@ -34,25 +38,6 @@ impl Backend for CpuBackend {
     }
 
     fn flush(&self) {}
-}
-
-impl Rectifier for CpuBackend {
-    fn rectifier(&self, x: &Self::Tensor) -> Self::Tensor {
-        let x = &x.0;
-        CpuTensor::new(x.data.iter().map(|&v| v.max(0.)).collect(), x.rows, x.cols)
-    }
-
-    fn gate(&self, sig: &Self::Tensor, x: &Self::Tensor) -> Self::Tensor {
-        // TODO check size
-        let (sig, x) = (&sig.0, &x.0);
-        CpuTensor::new(
-            zip(&sig.data, &x.data)
-                .map(|(&s, &d)| if 0. < s { d } else { 0. })
-                .collect(),
-            x.rows,
-            x.cols,
-        )
-    }
 }
 
 #[cfg(test)]

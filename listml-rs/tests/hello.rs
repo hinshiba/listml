@@ -1,5 +1,4 @@
-use crate::common::init;
-use crate::common::read_f32;
+use crate::common::{init, read_f32};
 use wgpu::util::DeviceExt;
 
 #[macro_use]

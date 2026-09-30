@@ -1,4 +1,8 @@
-use crate::{backend::Backend, layer::Layer, operation::rectifier::Rectifier};
+use crate::{
+    backend::Backend,
+    layer::Layer,
+    operation::{gate::Gate, rectifier::Rectifier},
+};
 use std::sync::Arc;
 
 pub struct Relu<B: Backend> {
@@ -13,7 +17,7 @@ pub struct Relu<B: Backend> {
     y: Option<B::Tensor>,
 }
 
-impl<B: Rectifier> Relu<B> {
+impl<B: Rectifier + Gate> Relu<B> {
     pub fn new(backend: Arc<B>) -> Self {
         Self {
             b: backend,
@@ -22,7 +26,7 @@ impl<B: Rectifier> Relu<B> {
     }
 }
 
-impl<B: Rectifier> Layer<B> for Relu<B> {
+impl<B: Rectifier + Gate> Layer<B> for Relu<B> {
     fn forward(&mut self, x: &B::Tensor) -> B::Tensor {
         let y = self.b.rectifier(x);
         self.y = Some(y.clone());
